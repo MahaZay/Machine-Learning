@@ -1,0 +1,350 @@
+---
+title: "SVM"
+output: html_document
+date: "2023-06-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Support Vector Machine 
+###### Compiled by Vignesh Govindraj (SVM)
+
+In the following we try to answer the research questions through SVM 
+```{r Loading and Splitting Data}
+dataset <- read.csv("melb_data.csv")
+selected_cols <- c("Distance", "Bedroom2", "Rooms", "Type", "Landsize", "Price")
+data <- dataset[selected_cols]
+
+# Split the dataset into training and testing sets
+set.seed(125)
+trainIndex <- sample(1:nrow(dataset), 0.7 * nrow(dataset))
+trainData <- data[trainIndex, ]
+testData <- data[-trainIndex, ]
+```
+
+Q) Considering the financial capability, which geographical area (south, east, west, or north) would be affordable for me to buy a house in?
+
+
+```{r RSQ2, Vignesh}
+
+# Select the relevant columns
+
+data <- dataset[,c("Price", "Rooms", "Type", "Distance", "Landsize", "Regionname")]
+
+# Split the dataset into training and testing sets
+set.seed(125)
+trainIndex <- sample(1:nrow(dataset), 0.7 * nrow(dataset))
+trainData <- data[trainIndex, ]
+testData <- data[-trainIndex, ]
+
+# Create the regression model
+regModel <- lm(Price ~ ., data = trainData)
+
+# Make predictions on the test set
+predictions <- predict(regModel, newdata = testData)
+
+# Visualize the output
+output <- data.frame(ActualPrice = testData$Price, PredictedPrice = predictions, Regionname = testData$Regionname)
+
+ggplot(output, aes(x = Regionname, y = ActualPrice, fill = PredictedPrice)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Affordability of Houses by Region") +
+  xlab("Region") +
+  ylab("Price") +
+  theme_bw()
+# Calculate regression evaluation metrics
+mse <- mean((predictions - testData$Price)^2)
+rmse <- sqrt(mse)
+mae <- mean(abs(predictions - testData$Price))
+r_squared <- 1 - sum((testData$Price - predictions)^2) / sum((testData$Price - mean(testData$Price))^2)
+
+# Print the regression evaluation metrics 
+
+#the following print statements are commented  
+# cat("Mean Squared Error (MSE):", mse, "\n")
+# cat("Root Mean Squared Error (RMSE):", rmse, "\n")
+# cat("Mean Absolute Error (MAE):", mae, "\n")
+# cat("R-squared:", r_squared, "\n")
+```
+The relevant columns for analysis are selected from the dataset which includes "Price", "Rooms", "Type", "Distance", "Landsize", and "Regionname". The resulting data is stored in the variable called  `data`.  The dataset is split into training and testing sets, the `set.seed` function ensures reproducibility by setting a random seed value of 125 and dividing in the ratio of 70% for the training dataset, and 30% for the test dataset. 
+
+A regression model is created using the `lm` function (linear regression) and the formula `Price ~ .` specifies that "Price" is the dependent variable and the remaining variables in the training dataset are the independent variables. Predictions are made on the test dataset using the `predict` function, with the trained regression model and the new data as arguments.
+
+Conclusion:
+From the visualization and output, it is clear that the predicted value of the house in the Southern Metropolitan area is more than in any other area so we concluded that buying the house in the Southern Metropolitan area is more worth while followed by the Northern and Eastern Metropolitan 
+
+
+Q) Among different types of properties, which type is currently being sold the most in the real estate market?
+```{r RSQ3, Vignesh}
+
+# Select the relevant columns
+data <- dataset[, c("Type", "Rooms", "Price", "Distance", "Bedroom2")]
+
+# Convert Type to a factor
+data$Type <- factor(data$Type)
+
+# Preprocess the data if needed
+
+# Split the dataset into training and testing sets
+set.seed(125)
+trainIndex <- sample(1:nrow(dataset), 0.7 * nrow(dataset))
+trainData <- data[trainIndex, ]
+testData <- data[-trainIndex, ]
+
+# Create the SVM classification model
+svmModel <- svm(Type ~ ., data = trainData, type = "C-classification")
+
+# Make predictions on the test set
+predictions <- predict(svmModel, newdata = testData)
+
+# Evaluate the model
+accuracy <- sum(predictions == testData$Type) / length(predictions)
+
+# Create a table of predicted counts for each house type
+predictionTable <- table(predictions)
+
+# Create a bar plot of the predicted house types
+barplot(predictionTable, main = "Distribution of House Types", xlab = "House Type", ylab = "Count")
+
+# Print the predicted house types and their corresponding counts
+cat("Predicted House Types:\n")
+#print(predictionTable)
+
+
+```
+
+The relevant columns are selected from the `data` variable and stored in the `dataset` variable. The selected columns include "Type", "Rooms", "Price", "Distance", and "Bedroom2". The column Type is converted into a factor variable by using factor function.  
+
+The formula `Type ~ .` where the Type column is the dependent variable, and the remaining column are taken as the independent variables. The type parameter is set to "C-classification", indicating that this is a classification task. 
+
+Predictions are made on the test dataset using the `predict` function, which is trained by using the SVM model. The accuracy of the model is evaluated by comparing the predicted values to the actual values and it is stored in the accuracy variable. A table of predicted counts for each house type is created using the table function on the `predictions` variable to provide a summary of the distribution of predicted house types.
+
+A bar plot is created using the barplot function to visualize the distribution of predicted house types. 
+
+Conclusion:
+
+From the visualization and prediction, we can get to know that type `h` houses are sold most than any other type.
+
+
+Q) Which suburbs are considered the best options for purchasing a property? 
+```{r}
+data <- na.omit(data)  # Remove rows with missing values
+
+data <- dataset[,c("Suburb", "Price")]
+# Convert Suburb to a factor
+data$Suburb <- factor(data$Suburb)
+
+# Split the data into training and testing sets
+set.seed(125)
+trainIndex <- sample(1:nrow(data), 0.7 * nrow(data))
+trainData <- data[trainIndex, ]
+testData <- data[-trainIndex, ]
+
+# Train the SVM model
+svmModel <- svm(Price ~ Suburb, data = trainData)
+
+# Predict house prices for the test data
+predictions <- predict(svmModel, newdata = testData)
+
+# Create a data frame with predicted prices and suburbs
+predictionData <- data.frame(Suburb = as.character(testData$Suburb), PredictedPrice = predictions)
+
+# Print the predicted house prices for each suburb
+cat("Predicted House Prices by Suburb:\n")
+#print(predictionData)
+
+# Calculate the average predicted price for each suburb
+averagePrices <- aggregate(PredictedPrice ~ Suburb, predictionData, mean)
+
+# Sort suburbs based on average predicted price in ascending order
+sortedSuburbs <- averagePrices[order(averagePrices$PredictedPrice), ]
+
+# Print the ranking of suburbs
+#To get the ranking kindly uncomment the code below 
+
+# cat("\nSuburbs Ranked by Predicted House Prices:\n")
+# for (i in 1:nrow(sortedSuburbs)) {
+#   cat(i, ": ", sortedSuburbs$Suburb[i], "\n")
+# }
+
+# Visualize the predicted house prices
+library(ggplot2)
+ggplot(predictionData, aes(x = Suburb, y = PredictedPrice)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(x = "Suburb", y = "Predicted Price", title = "Predicted House Prices by Suburb") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+The relevant columns, "Suburb" and "Price," are selected from the dataset,  Rows with missing values in the `data` are removed using the `na.omit` function. This step removes any rows that have missing values in "Suburb" or "Price" columns. The column "Suburb"  is converted to a factor variable using the factor function. 
+
+An SVM model is trained using the svm function from the `e1071` library using the training dataset , the formula is  `Price ~ Suburb` where Price is the dependent variable, and Suburb is the independent variable. 
+
+Predictions are made on the test dataset using the `predict` function, with the trained SVM model and the new data the predicted values are stored in the `predictions` variable.
+
+ggplot is used to visualize the output as a scatter plot between the Suburb and Price columns. 
+
+Conclusion:
+From the model it is clear that Abbotsford suburb are the best to buy.
+
+
+Q) In which part of town are the properties generally more expensive? 
+```{r}
+
+# Preprocess the data
+data <- dataset[, c("Suburb", "Price", "Lattitude", "Longtitude")]  
+data <- na.omit(data)  
+# Split the data into training and testing sets
+set.seed(125)
+trainIndex <- sample(1:nrow(data), 0.7 * nrow(data))
+trainData <- data[trainIndex, ]
+testData <- data[-trainIndex, ]
+
+# Train the SVM model
+svmModel <- svm(Price ~ Lattitude + Longtitude, data = trainData)
+
+# Predict house prices for the entire dataset
+predictions <- predict(svmModel, newdata = data)
+
+# Combine the predictions with the original data
+data$PredictedPrice <- predictions
+
+# Find the suburb with the highest predicted price
+expensiveSuburb <- data[data$PredictedPrice == max(data$PredictedPrice), "Suburb"]
+
+# Visualize the predicted prices on a map
+
+ggplot(data, aes(x = Longtitude, y = Lattitude, color = PredictedPrice)) +
+  geom_point() +
+  labs(x = "Longitude", y = "Latitude", title = "Predicted House Prices by Location") +
+  theme_bw() +
+  scale_color_gradient(low = "blue", high = "red") +
+  guides(color = guide_legend(title = "Predicted Price")) +
+  geom_text(data = data[data$Suburb == expensiveSuburb, ],
+            aes(label = Suburb), hjust = -0.1, vjust = 0.5, size = 3, color = "black", fontface = "bold")
+
+
+# Print the predicted prices for each suburb
+cat("Predicted House Prices by Suburb:\n")
+#print(data[, c("Suburb", "PredictedPrice")])
+
+# Print the suburb with the highest predicted price
+cat("\nSuburb with the Highest Predicted Price:\n")
+cat(expensiveSuburb, "\n")
+
+```
+
+The relevant columns, including "Suburb", "Price", "Lattitude", and "Longtitude," are selected from the dataset, with missing values in the `data` are removed using the `na.omit` function. 
+
+An SVM model is trained using the `svm` function from the `e1071` library. The formula is `Price ~ Lattitude + Longtitude` where "Price" is the dependent variable, and "Lattitude" and "Longtitude" are the independent variables. The `data` parameter is set to `trainData`, specifying the training dataset. Predictions are made on the entire dataset using the predict function, with the trained SVM model.The predicted values are stored in the prediction variable. 
+
+The predictions are combined with the original data by adding a new column called "PredictedPrice". The suburb with the highest predicted price is determined by finding the row in `data` where the "PredictedPrice" is equal to the maximum predicted price. The suburb name is extracted and stored in the expensive suburb. 
+ 
+The output is visualized by using the ggplot and price for each suburb is printed to show which side of town is most expensive to buy.
+ 
+Conclusion:
+
+By using the visualization and predicted value output it is clear that the Sandringham suburb is the most expensive part. 
+
+
+Q)  What are the recommended locations for buying a 2-bedroom unit?
+```{r}
+# Preprocess the data
+data <- dataset[, c("Suburb", "Price", "Bedroom2", "Lattitude", "Longtitude")]  # Select relevant columns
+data <- na.omit(data)  # Remove rows with missing values
+
+# Filter data for 2-bedroom units
+twoBedroomData <- data[data$Bedroom2 == 2, ]
+
+# Split the data into training and testing sets
+set.seed(125)
+trainIndex <- sample(1:nrow(twoBedroomData), 0.7 * nrow(twoBedroomData))
+trainData <- twoBedroomData[trainIndex, ]
+testData <- twoBedroomData[-trainIndex, ]
+
+# Train the SVM model
+svmModel <- svm(Price ~ Lattitude + Longtitude, data = trainData)
+
+# Predict prices for the entire dataset
+predictions <- predict(svmModel, newdata = twoBedroomData)
+
+# Combine the predictions with the original data
+twoBedroomData$PredictedPrice <- predictions
+
+# Find the suburb with the lowest predicted price
+cheapestSuburb <- twoBedroomData[twoBedroomData$PredictedPrice == min(twoBedroomData$PredictedPrice), "Suburb"]
+
+# Visualize the predicted prices on a map
+library(ggplot2)
+ggplot(twoBedroomData, aes(x = Longtitude, y = Lattitude, color = PredictedPrice)) +
+  geom_point() +
+  labs(x = "Longitude", y = "Latitude", title = "Predicted Prices for 2-Bedroom Units") +
+  theme_bw() +
+  scale_color_gradient(low = "blue", high = "red") +
+  guides(color = guide_legend(title = "Predicted Price")) +
+  geom_text(data = twoBedroomData[twoBedroomData$Suburb == cheapestSuburb, ],
+            aes(label = Suburb), hjust = -0.1, vjust = 0.5, size = 3, color = "black", fontface = "bold")
+
+
+cat("Predicted Prices for 2-Bedroom Units by Suburb:\n")
+#print(twoBedroomData[, c("Suburb", "PredictedPrice")])
+
+# Print the suburb with the lowest predicted price
+cat("\nSuburb with the Lowest Predicted Price for 2-Bedroom Units:\n")
+cat(cheapestSuburb, "\n")
+
+```
+
+The relevant columns, including "Suburb", "Price", "Bedroom2", "Lattitude", and "Longtitude," are selected from the dataset and missing values are removed using the `na.omit` function. . The data is filtered to include only 2-bedroom units by creating a new dataset called `twoBedroomData`, which contains rows where the "Bedroom2" column is equal to 2. 
+The formula `Price ~ Lattitude + Longtitude` where  "Price" is the dependent variable, and "Lattitude" and "Longtitude" are the independent variables trained by using Train dataset. Predictions are made on the entire `twoBedroomData` using the `predict` function, with the trained SVM model. The predicted values are stored in the `predictions` variable. 
+
+The predictions are combined with the original `twoBedroomData` by adding a new column called "PredictedPrice" to the `twoBedroomData` variable.The suburb with the lowest predicted price is determined by finding the row in `twoBedroomData` where the "PredictedPrice" is equal to the minimum predicted price.
+
+Conclusion:
+By using visualization graph and output it is clear that the best suburb to buy 2-bedroom house is Melton South.
+
+## Solve an optimization problem
+
+```{r}
+# Load the dataset
+dataset <- read.csv("melb_data.csv")
+
+# Select the relevant columns
+
+data <- dataset[,c("Price", "Rooms", "Type", "Distance", "Landsize", "Regionname")]
+
+# Preprocess the dataset if needed (e.g., handling missing values, encoding categorical variables)
+
+# Split the dataset into training and testing sets
+set.seed(125)
+trainIndex <- sample(1:nrow(dataset), 0.7 * nrow(dataset))
+trainData <- data[trainIndex, ]
+testData <- data[-trainIndex, ]
+
+# Create the regression model
+regModel <- lm(Price ~ ., data = trainData)
+
+# Make predictions on the test set
+predictions <- predict(regModel, newdata = testData)
+
+# Visualize the output
+output <- data.frame(ActualPrice = testData$Price, PredictedPrice = predictions, Regionname = testData$Regionname)
+
+ggplot(output, aes(x = Regionname, y = ActualPrice, fill = PredictedPrice)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Affordability of Houses by Region") +
+  xlab("Region") +
+  ylab("Price") +
+  theme_bw()
+# Calculate regression evaluation metrics
+mse <- mean((predictions - testData$Price)^2)
+rmse <- sqrt(mse)
+mae <- mean(abs(predictions - testData$Price))
+r_squared <- 1 - sum((testData$Price - predictions)^2) / sum((testData$Price - mean(testData$Price))^2)
+
+# Print the regression evaluation metrics
+cat("Mean Squared Error (MSE):", mse, "\n")
+cat("Root Mean Squared Error (RMSE):", rmse, "\n")
+cat("Mean Absolute Error (MAE):", mae, "\n")
+cat("R-squared:", r_squared, "\n")

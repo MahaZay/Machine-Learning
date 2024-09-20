@@ -1,0 +1,544 @@
+---
+title: "Melbourne house predicting"
+author: "Maha Hazime-zayour"
+date: "2023-05-20"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+```
+
+### Introduction
+Welcome to this marketing analysis using the Melbourne dataset from Kaggle! In this study, we will employ various statistical models and machine learning techniques to gain valuable insights and make predictions in the field of marketing. The Melbourne dataset contains a wealth of information related to real estate in Melbourne, Australia, including attributes such as property size, location, number of rooms, and sale prices. By exploring this dataset, we aim to develop robust models that can help businesses optimize their marketing strategies and make informed decisions.
+
+#### Project's objective
+The main objectives of this marketing analysis are as follows:
+
+Explore the Melbourne dataset to understand the relationships between various marketing-related factors and real estate prices.
+Develop predictive models using statistical and machine learning techniques to estimate property sale prices accurately.
+Optimize marketing strategies by leveraging the insights derived from the models to maximize marketing outcomes..
+Provide actionable recommendations to businesses on how to enhance their marketing efforts based on the analysis results.
+
+### Our Client
+The client for this analysis is a real estate marketing agency operating in Melbourne. They are seeking data-driven insights to optimize their marketing strategies and improve their business performance. By understanding the factors that impact real estate prices and being able to predict property sale prices accurately, the client can make informed decisions on pricing, targeting, and positioning their properties in the market. The analysis aims to provide the client with actionable recommendations to enhance their marketing efforts and achieve better outcomes.
+
+### Our dataset 
+
+The Melbourne dataset used in this analysis contains information about real estate sales in Melbourne, Australia. It includes a variety of features that can influence property prices, such as property size, location, number of rooms, and other relevant attributes. The dataset consists of the following columns:
+
+Rooms: Number of rooms in the property
+Type: Type of the property (e.g., house, unit, townhouse)
+Price: Sale price of the property (target variable)
+Method: Method of sale (e.g., auction, private treaty)
+SellerG: Real estate agent
+Date: Date of sale
+Distance: Distance from CBD (Central Business District) in kilometers
+Postcode: Postal code
+Bedroom2: Number of bedrooms (alternative to Rooms for some properties)
+Bathroom: Number of bathrooms
+Car: Number of car spaces
+Landsize: Land size in square meters
+BuildingArea: Building area in square meters
+YearBuilt: Year the property was built
+CouncilArea: Local government area
+Regionname: General region (e.g., Northern Metropolitan, Western Metropolitan)
+Propertycount: Number of properties in the suburb
+Address: Property address
+The dataset provides a rich set of features that can be used to predict property sale prices accurately and derive insights for marketing optimization.
+
+## Data Preprocessing
+#### Compiled by Maha Hazime_Zayour
+Data preprocessing is an important step in preparing a dataset for analysis and modeling. In this R Markdown section, we will focus on the data preprocessing steps performed on the "housing_data" dataset. The code provided demonstrates the necessary actions to clean and transform the data.
+
+```{r include=FALSE}
+
+# Libraries
+library(dplyr)
+library(mice)
+library(caret)
+library(tidyverse)
+library(ggplot2)
+library(visdat)
+library(gridExtra)
+library(corrplot)
+library(stringr)
+library(mgcv)
+
+# Load the dataset
+housing_data <- read.csv("Melbourne_housing_FULL.csv")
+
+#  Display the structure of the dataset-
+str(housing_data)
+
+# Summary statistics of the dataset
+summary(housing_data)
+
+# Variable names
+names(housing_data)
+
+# Convert a character column to a factor
+housing_data$Suburb <- as.factor(housing_data$Suburb)
+housing_data$Type <- as.factor(housing_data$Type)
+housing_data$Method <- as.factor(housing_data$Method)
+housing_data$Regionname <- as.factor(housing_data$Regionname)
+
+# Convert Distance and Propertycount to numeric
+housing_data$Distance <- as.numeric(housing_data$Distance)
+housing_data$Propertycount <- as.numeric(housing_data$Propertycount)
+
+
+# Cleaning the dataset
+
+# Check for missing values
+sum(is.na(housing_data))
+
+# Check for missing values in each column
+missing_columns <- colSums(is.na(housing_data)) > 0
+names(housing_data)[missing_columns]
+
+# Create and display a missing value plot
+missing_plot <- vis_miss(housing_data)
+print(missing_plot)
+
+# Drop rows with missing data
+housing_data <- na.omit(housing_data)
+
+# Drop unnecessary columns
+housing_data <- housing_data %>%
+  select(-SellerG, -CouncilArea, -Address, -Postcode)
+
+# Detect and handel outliers 
+
+# Calculate summary statistics for BuildingArea
+summary(housing_data$BuildingArea)
+
+# Calculate the lower and upper bounds for outliers using IQR
+Q1 <- quantile(housing_data$BuildingArea, 0.25)
+Q3 <- quantile(housing_data$BuildingArea, 0.75)
+IQR <- Q3 - Q1
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+# Remove outliers from the BuildingArea
+cleaned_data <- housing_data[housing_data$BuildingArea >= lower_bound & housing_data$BuildingArea <= upper_bound, ]
+
+# Check summary statistics of BuildingArea in the cleaned dataset
+summary(cleaned_data$BuildingArea)
+
+# Check for zero values in the BuildingArea column
+sum(housing_data$BuildingArea == 0, na.rm = TRUE)
+
+# Calculate the mean of non-zero BuildingArea values
+building_area_mean <- mean(housing_data$BuildingArea[housing_data$BuildingArea != 0], na.rm = TRUE)
+
+# Replace zero values in BuildingArea with the mean
+housing_data$BuildingArea[housing_data$BuildingArea == 0] <- building_area_mean
+
+
+```
+
+###Graphical Analysis
+#### Compiled by Maha Hazime_Zayour
+After preparing the data, a graphical analysis is conducted to provide a visual exploration of the dataset. This step allows us to inspect the data, identify any potential errors, and gain a deeper understanding of its structure. By visualizing the data through various charts, plots, and graphs, we can identify patterns, trends, outliers, and other notable features that may impact our analysis. This graphical analysis serves as a valuable tool in identifying potential data issues, such as missing values, inconsistencies, or outliers. Additionally, it helps us understand the characteristics and distribution of the variables in the dataset, enabling us to make informed decisions regarding data preprocessing and modeling techniques. Overall, the graphical analysis provides valuable insights that can guide the subsequent steps of our analysis.
+
+```{r include=FALSE, results='hide'}
+
+#Histogram of Price:
+ggplot(housing_data, aes(x = Price)) +
+  geom_histogram(bins = 30, fill = "blue", color = "white") +
+  labs(x = "Price", y = "Frequency", title = "Distribution of Price")
+
+# View the "Regionname" column before abbreviating
+head(housing_data$Regionname)
+
+# Abbreviate Regionnames
+housing_data$Regionname <- str_replace_all(housing_data$Regionname, c('Northern Metropolitan'='N Metro',
+                                                                      'Western Metropolitan'='W Metro', 
+                                                                      'Southern Metropolitan'='S Metro', 
+                                                                      'Eastern Metropolitan'='E Metro', 
+                                                                      'South-Eastern Metropolitan'= 'SE Metro', 
+                                                                      'Northern Victoria'='N Vic',
+                                                                      'Eastern Victoria'='E Vic',
+                                                                      'Western Victoria'='W Vic'))
+# Boxplot of Price by Region:
+ggplot(housing_data, aes(x = Regionname, y = Price)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(x = "Regionname", y = "Price", title = "Price Variation by Region")
+
+# Graphical Analysis (categorical)
+# Set the theme
+theme_set(theme_minimal())
+# Create the subplots
+p1 <- ggplot(data = housing_data, aes(x = Type, y = Price)) +
+  geom_boxplot() +
+  labs(x = "Type", y = "Price") +
+  ggtitle("Type v Price")
+
+p2 <- ggplot(data = housing_data, aes(x = Method, y = Price)) +
+  geom_boxplot() +
+  labs(x = "Method", y = "Price") +
+  ggtitle("Method v Price")
+
+p3 <- ggplot(data = housing_data, aes(x = Regionname, y = Price)) +
+  geom_boxplot() +
+  labs(x = "Regionname", y = "Price") +
+  ggtitle("Region Name v Price")
+
+# Arrange the subplots in a grid
+grid.arrange(p1, p2, p3, ncol = 2, nrow = 2)
+
+
+# Graphical Analysis (Numeric Features)
+
+# Set the theme
+theme_set(theme_minimal())
+# Create the subplots
+p1 <- ggplot(data = housing_data, aes(x = Rooms, y = Price)) +
+  geom_point(color = "blue") +
+  xlab("Rooms") +
+  ylab("Price") +
+  ggtitle("Rooms v Price")
+
+p2 <- ggplot(data = housing_data, aes(x = Distance, y = Price)) +
+  geom_point(color = "blue") +
+  xlab("Distance") +
+  ylab("Price") +
+  ggtitle("Distance v Price")+
+  scale_x_continuous(breaks = seq(0, max(housing_data$Distance), 10))
+
+p3 <- ggplot(data = housing_data, aes(x = Bathroom, y = Price)) +
+  geom_point(color = "blue") +
+  xlab("Bathroom") +
+  ylab("Price") +
+  ggtitle("Bathroom v Price")
+
+p4 <- ggplot(data = housing_data, aes(x = Car, y = Price)) +
+  geom_point(color = "blue") +
+  xlab("Car") +
+  ylab("Price") +
+  ggtitle("Car v Price")
+
+p5 <- ggplot(data = housing_data, aes(x = Landsize, y = Price)) +
+  geom_point(color = "blue") +
+  xlab("Landsize") +
+  ylab("Price") +
+  ggtitle("Landsize v Price")
+
+p6 <- ggplot(data = housing_data, aes(x = BuildingArea, y = Price)) +
+  geom_point(color = "blue") +
+  xlab("BuildingArea") +
+  ylab("Price") +
+  ggtitle("BuildingArea v Price")
+
+p7 <- ggplot(data = housing_data, aes(x = YearBuilt, y = Price)) +
+  geom_point(color = "blue") +
+  xlab("YearBuilt") +
+  ylab("Price") +
+  ggtitle("YearBuilt v Price") +
+  scale_x_continuous(breaks = seq(1850, 2020, by = 10), labels = seq(1850, 2020, by = 10))
+
+p8 <- ggplot(data = housing_data, aes(x = Propertycount, y = Price)) +
+  geom_point(color = "blue") +
+  xlab("Propertycount") +
+  ylab("Price") +
+  ggtitle("Propertycount v Price")+ 
+  scale_x_continuous(breaks = seq(0, max(housing_data$Distance), 5000))
+
+# Arrange the subplots in a grid
+grid.arrange(p1, p2, p3, p4, p5, p6, p7, p8, ncol = 2, nrow = 4)
+
+
+
+# Correlation
+
+# Select numeric columns from the housing_data dataset
+numeric_columns <- sapply(housing_data, is.numeric)
+numeric_data <- housing_data[, numeric_columns]
+
+# Calculate the correlation matrix
+correlation <- cor(numeric_data)
+
+
+# Create the correlation map
+corrplot(correlation, method = "color", type = "upper", 
+         tl.col = "black", tl.srt = 45, addCoef.col = "black",
+         diag = FALSE)
+
+```
+
+
+
+
+## Linear Model
+###### Compiled by Maha Hazime_Zayour
+Our analysis will encompass a range of statistical and machine learning models. We will begin by constructing a Linear Model, which is a fundamental technique used to establish relationships between predictor variables and the response variable. This model will provide us with a baseline understanding of the dataset and the linear relationships between variables.
+
+To predict house prices using a linear model, the first step is to split the data into training and testing sets. In this analysis, a seed value of 123 was chosen for reproducibility purposes. The dataset was divided using an 80-20 split, where 80% of the observations were assigned to the training data and 20% were assigned to the testing data.
+```{r}
+# Split the data into training and testing sets
+set.seed(123)  # Set a seed for reproducibility
+train_indices <- createDataPartition(housing_data$Price, p = 0.8, list = FALSE)
+train_data <- housing_data[train_indices, ]
+test_data <- housing_data[-train_indices, ]
+```
+
+```{r Linear Model}
+# Fit a simple linear model
+lm_housing <- lm(Price ~ BuildingArea, data = train_data)
+
+# coefficient Regression
+coef(lm_housing)
+
+# Summary
+summary(lm_housing)
+
+# visualise Simple Regression
+ggplot(train_data, aes(x = BuildingArea, y = Price)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Building Area", y = "Price", title = "Price vs. Building Area") +
+  scale_x_continuous(limits = c(0, 800))
+```
+
+In the simple regression model (lm_housing) fitted to the data, the intercept is estimated to be 506,748.62 dollars , which is an unrealistic predicted average housing price when the BuildingArea is zero. The coefficient for BuildingArea suggests that, on average, each unit increase in BuildingArea is associated with a $3923.24 increase in the predicted housing price. The p-values for both the intercept and BuildingArea coefficient are highly significant, indicating a strong relationship between BuildingArea and housing prices. The model explains approximately 25.94% of the variance in housing prices (moderate explanatory power), with a residual standard error of around 584,500 dollars. Therefore, the model suggests that larger building areas have a significant impact on higher housing prices, but its predictive power is relatively modest.
+
+#### Multiple linear regression without interaction
+After considering the limited predictive power of the initial linear model, we have expanded the analysis by incorporating additional variables into a multiple linear regression. This enables us to account for the potential influence of other factors on housing prices and improve the model's predictive performance.
+
+```{r}
+# Fit multiple linear regression model
+lm_housing.2 <- lm(Price ~ BuildingArea + YearBuilt, data = train_data)
+
+# Summary
+summary(lm_housing.2)
+
+# Coefficients
+coef(lm_housing.2)
+
+# Create scatter plot for BuildingArea
+plot_building_area <- ggplot(train_data, aes(x = BuildingArea, y = Price)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Building Area", y = "Price", title = "Price vs. Building Area")
+
+# Create scatter plot for YearBuilt
+plot_year_built <- ggplot(train_data, aes(x = YearBuilt, y = Price)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Year Built", y = "Price", title = "Price vs. Year Built") +
+  scale_x_continuous(limits = c(1850, 2016))
+
+# Combine the plots
+combined_plots <- grid.arrange(plot_building_area, plot_year_built, nrow = 1)
+
+# Display the combined plot
+print(combined_plots)
+```
+The multiple linear regression model incorporating BuildingArea and YearBuilt as predictors shows significant relationships with housing prices. The model suggests that larger building areas are associated with higher prices, while older buildings tend to have lower prices, holding other factors constant. The model explains approximately 37.44% of the housing price variance, indicating a moderate level of predictive power. The residual standard error suggests an average difference of around $537,300 between observed and predicted values. Considering the model's performance, it is recommended to also explore additional predictors or refine the model further to improve its accuracy and explanatory power.
+
+#### Multiple linear regression with interaction
+```{r}
+# Fit multiple linear regression model with interaction
+lm_housing.3 <- lm(Price ~ BuildingArea * YearBuilt, data = train_data)
+summary(lm_housing.3)
+
+```
+Comparing the models without and with the interaction term, we conclude that the model with the interaction term provides additional information and captures a more complex relationship between BuildingArea, YearBuilt, and housing prices. While the improvement in R-squared is relatively small, it suggests that considering the interaction effect can enhance the model's explanatory power. However, the impact on the overall predictive performance of the model may not be substantial, as indicated by the modest improvement in R-squared.
+
+#### Multiple linear regression including multiple predictors
+
+Now we added additional variables to capture a more comprehensive understanding of the relationship between the predictors and housing prices. This will allow us to assess their individual impacts while controlling for the effects of other variables.
+```{r}
+# Fit multiple linear regression model
+
+lm_housing.4 <- lm(Price ~ BuildingArea +  YearBuilt + Rooms + Distance + Bathroom + Car + Landsize +  Propertycount, data = train_data)
+
+# coefficient Regression
+coef(lm_housing.4)
+
+# Summary
+summary(lm_housing.4)
+```
+```{r echo=FALSE}
+# Create scatter plots with regression line for each predictor variable
+scatter_plots <- lapply(names(lm_housing.4$model)[-1], function(var) {
+  ggplot(lm_housing.4$model, aes_string(x = var, y = "Price")) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    xlab(var) +
+    ylab("Price")
+})
+
+# Arrange the scatter plots in a grid layout
+grid_plot <- do.call(gridExtra::grid.arrange, scatter_plots)
+
+# Display the grid of scatter plots
+print(grid_plot)
+```
+
+The multiple linear regression model performed well in explaining the variation in housing prices in Melbourne. The included predictor variables, such as BuildingArea, YearBuilt, Rooms, Distance, Bathroom, Car, Landsize, and Propertycount, had significant impacts on housing prices. The model's adjusted R-squared value of 0.5247 suggests that approximately 52.47% of the housing price variance can be accounted for by these variables. The estimated coefficients provided insights into the relationships: building area and the number of rooms positively influenced prices, while ageof the building, distance from the CBD, and property count had negative effects. The p-values indicated strong evidence to reject the null hypothesis of no relationship. However, it is important to acknowledge that there may be additional factors not considered in the model that contribute to housing price variability.
+
+#### Measures of fit
+At this stage of the analysis, we proceed to compare the R-squared values of the various models to assess the goodness of fit. By examining the R-squared values, we can gain insight into how well each model explains the variability in the data and measures the extent to which the independent variables account for the variation in the dependent variable.
+```{r}
+# Calculate R-squared (to comment on the goodness of the fit ) 
+# model with no interaction 
+formula(lm_housing.2)
+summary(lm_housing.2)$r.squared
+
+formula(lm_housing.4)
+summary(lm_housing.4)$r.squared
+
+# model with interaction 
+formula(lm_housing.3)
+summary(lm_housing.3)$r.squared
+
+
+# Calculate adjusted R-squared
+summary(lm_housing.2)$adj.r.squared
+summary(lm_housing.3)$adj.r.squared
+summary(lm_housing.4)$adj.r.squared
+
+```
+The comparison between the models with and without the interaction term shows a small improvement in the R-squared values, indicating that the inclusion of the interaction term has a minor impact on the overall predictive performance. The adjusted R-squared values also exhibit similar results, suggesting that the inclusion of the interaction term does not significantly enhance the model's ability to explain housing prices. Therefore, it may be concluded that the interaction term does not play a substantial role in predicting housing prices in this context. In contrast, when comparing the model lm_housing.4, which incorporates additional variables (Rooms, Distance, Bathroom, Car, Landsize, Propertycount), it shows higher R-squared (0.5253) and adjusted R-squared (0.5247) values compared to both lm_housing.2 and lm_housing.3. TThese improvements indicate that the additional variables significantly enhance the model's ability to explain the variability in housing prices beyond the BuildingArea and YearBuilt variables. Therefore, lm_housing.4 is recommended as the most suitable model for predicting housing prices in this context.
+
+
+#### Fitted values & Residuals
+
+#### Fitted values
+Next, we will analyze the fitted values for the linear regression model. Fitted values are the predicted values that the model generates for the observations used to train the model. These fitted values are calculated using the estimated regression coefficients obtained from the model. By examining the fitted values, we can assess how well the model predicts the target variable for the training data.
+```{r}
+# Fitted values
+fitted_values <- fitted(lm_housing)
+
+str(fitted_values)
+head(fitted_values)
+```
+The fitted values vector consists of 6223 elements, representing the predicted housing prices for specific observations. Examples of these predicted prices include 816684.5, 1095234.4, 1063848.5, 1330628.7, 926535.1, and 800991.5 for observations 3, 5, 7, 12, 15, and 19, respectively. These fitted values provide a basis for comparison with the actual prices, allowing us to evaluate the model's performance in predicting housing prices.
+
+#### Residuals
+Residuals, in the context of a linear model, represent the discrepancies or differences between the observed values and the predicted values obtained from the model
+
+```{r}
+residuals <- resid(lm_housing)
+
+length(residuals)
+head(residuals)
+```
+The displayed residuals are associated with specific data points, identified by their index values (e.g., 3, 5, 7, 12, 15, 19). Each value represents the difference between the observed value and the corresponding predicted value for the respective data point in the linear regression model. For example, the first residual of 218315.5 corresponds to the third data point, indicating that the observed value for that data point is 218315.5 units away from the predicted value
+
+```{r}
+set.seed(20) ## for reproducibility
+id <- sample(x = 1:144, size = 5)
+residuals[id]
+fitted_values[id]
+```
+
+```{r echo=FALSE}
+# Residuals plot
+plot(Price ~ BuildingArea, data = train_data,
+     main = "Model 'lm_housing'",
+     col = "lightgray")
+
+abline(lm_housing)
+
+points(Price ~ BuildingArea, data = train_data[id, ],
+       col = "red")
+
+segments(x0 = train_data[id, "BuildingArea"], x1 = train_data[id, "BuildingArea"],
+         y0 = fitted_values[id], y1 = train_data[id, "Price"],
+         col = "blue")
+```
+Through the scatter plot, we can observe the overall distribution of the data points. The regression line represents the estimated relationship between the variables. The highlighted points, accompanied by the connecting lines, illustrate the residuals associated with those particular data points. This plot aids in understanding how well the regression model fits the data and provides insights into the presence of any patterns or deviations.
+
+
+```{r}
+# Create new data for prediction
+new_data <- data.frame(
+  BuildingArea = c(120, 200, 250),
+  YearBuilt = c(1990, 2005, 2010),
+  Rooms = c(3, 4, 5),
+  Distance = c(10, 15, 20),
+  Bathroom = c(2, 2.5, 3),
+  Car = c(1, 2, 2),
+  Landsize = c(500, 600, 700),
+  Propertycount = c(5000, 6000, 7000))
+
+# Predict using the linear model
+predictions <- predict(lm_housing.4, newdata = new_data)
+print(predictions)
+
+
+# Display predictions
+plot(Price ~ BuildingArea, 
+     data = train_data,
+     xlim = c(50, 600),
+     ylim = c(900000, 1600000),
+     main = "Predicted vs. Observed Prices")
+abline(lm_housing)
+##
+points(x = new_data$BuildingArea,
+       y = predictions, 
+       col = "purple",
+       pch = 19, cex = 1.5)
+
+# Compute prediction confidence intervals
+prediction_ci <- predict(lm_housing.4, newdata = new_data, interval = "prediction")
+
+# Display the predictions and confidence intervals
+print(data.frame(predictions, prediction_ci))
+```
+
+The predicted house prices for the three new data points in Melbourne range from $973,875.2 to $1,421,910.9. 
+The confidence intervals computed for each prediction provide an estimation of the likely range in which the true prices could fall. These intervals are relatively wide, indicating a significant level of uncertainty in the model's estimates. This highlights the limitations of the linear model in accurately capturing the intricate variations in house prices solely based on the given features.
+
+Therefore, while the linear model provides initial estimates, it may not fully capture all the factors that influence house prices in Melbourne. To improve the accuracy of predictions, additional features and more advanced modeling techniques will be explored.
+
+## Generalized Additive Models (GAMs)
+###### Compiled by Maha Hazime-Zayour
+
+GAM  model may  throw an error within the R-Markdown environment, but it produces the expected results when executed in a normal R file (MGCV 1.8-41). To view the plots generated by this gam model, it is advised to refer to the accompanying R file.
+
+
+To improve the accuracy of predictions and account for more complex relationships and potential non-linearities, we will explore the use of a Generalized Additive Model (GAM). By introducing a GAM, we aim to enhance the predictive power of the model and provide more accurate estimates of house prices in Melbourne.
+
+```{r}
+
+
+# Visualize target Price 
+hist(train_data$Price, main = "Histogram of Target Price")
+
+# Apply log transformation
+train_data$log_Price <- log(train_data$Price)
+
+# After transformation
+hist(train_data$log_Price, main = "Histogram of Log-Transformed Target Price")
+
+
+# Fit the GAM model
+gam_model <- gam(log_Price  ~ s(BuildingArea) + s(YearBuilt) + s(Rooms) + s(Distance)+ Bathroom + Car + Landsize + Propertycount,
+             data = train_data)
+
+# Print the summary of the GAM model
+summary(gam_model)
+
+# Plot the GAM model
+
+plot(gam_model, residuals = TRUE, pages = 1, shade = TRUE)
+```
+
+
+```{r}
+knitr::include_graphics("gam_model.png")
+knitr::include_graphics("GAM.png")
+```
+
+The GAM model includes smooth terms for BuildingArea, YearBuilt, Rooms, and Distance, which have high estimated degrees of freedom (edf). These terms are highly significant in the model, as indicated by high F-statistics and small p-values, indicating their substantial contribution to the model's fit.
+The model explains approximately 67.8% of the variation in the response variable, as measured by the adjusted R-squared value. This suggests a reasonable level of explanation for the observed data. The Deviance explained value of 68% further supports the model's ability to capture a significant portion of the total deviance in the response variable.
+Overall, the model with the smooth terms is effective in capturing complex relationships and explaining a considerable amount of the variability in the response variable.
+
+
+
+
